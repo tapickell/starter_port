@@ -1,11 +1,11 @@
-defmodule Circuits.UART.Framing do
+defmodule Starter.Port.Framing do
   @moduledoc """
-  A behaviour for implementing framers for data received over a UART.
+  A behaviour for implementing framers for data received over a starter_port.
   """
 
   @doc """
   Initialize the state of the framer based on options passed to
-  `Circuits.UART.open/3`.
+  `Starter.Port.open/3`.
 
   This function should return the initial state for the framer or
   an error.
@@ -15,7 +15,7 @@ defmodule Circuits.UART.Framing do
   @doc """
   Add framing to the passed in data.
 
-  The returned `frame_data` will be sent out the UART.
+  The returned `frame_data` will be sent out the starter_port.
   """
   @callback add_framing(data :: term, state :: term) ::
               {:ok, framed_data, new_state} | {:error, reason, new_state}
@@ -48,7 +48,7 @@ defmodule Circuits.UART.Framing do
   @callback frame_timeout(state :: term) :: {:ok, [term], new_state} when new_state: term
 
   @doc """
-  This is called when the user invokes `Circuits.UART.flush/2`. Any partially
+  This is called when the user invokes `Starter.Port.flush/2`. Any partially
   received frames should be dropped.
   """
   @callback flush(direction :: :receive | :transmit | :both, state :: term) :: new_state

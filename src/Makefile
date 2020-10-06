@@ -28,8 +28,8 @@ CFLAGS += -std=c99 -D_GNU_SOURCE
 
 ###################
 # If you're having trouble with the serial port, commenting in the following line
-# may give some more hints. By default, log messages are appended to circuits_uart.log.
-# See src/circuits_uart.c to change this. Be sure to rebuild everything by invoking
+# may give some more hints. By default, log messages are appended to starter_port.log.
+# See src/starter_port.c to change this. Be sure to rebuild everything by invoking
 # "mix clean" and then "mix compile", so that the flag takes effect.
 #CFLAGS += -DDEBUG
 
@@ -96,7 +96,7 @@ endif
 
 HEADERS =$(wildcard src/*.h)
 OBJ=$(SRC:src/%.c=$(BUILD)/%.o)
-PORTEXE=$(PREFIX)/circuits_uart$(EXEEXT)
+PORTEXE=$(PREFIX)/starter_port$(EXEEXT)
 
 all: install
 

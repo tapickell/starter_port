@@ -1,6 +1,6 @@
 defmodule FramingFourByteTest do
   use ExUnit.Case
-  alias Circuits.UART.Framing.FourByte
+  alias Starter.Port.Framing.FourByte
 
   test "frames 4 bytes at a time" do
     {:ok, framer} = FourByte.init([])

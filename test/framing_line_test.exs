@@ -1,6 +1,6 @@
 defmodule FramingLineTest do
   use ExUnit.Case
-  alias Circuits.UART.Framing.Line
+  alias Starter.Port.Framing.Line
 
   test "adds framing" do
     {:ok, line} = Line.init(separator: "\n")

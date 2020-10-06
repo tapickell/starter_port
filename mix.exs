@@ -1,17 +1,17 @@
-defmodule Circuits.UART.MixProject do
+defmodule Starter.Port.MixProject do
   use Mix.Project
 
   @version "1.4.2"
 
   def project do
     [
-      app: :circuits_uart,
+      app: :starter_port,
       version: @version,
       elixir: "~> 1.6",
-      name: "Circuits.UART",
+      name: "Starter.Port",
       description: description(),
       package: package(),
-      source_url: "https://github.com/elixir-circuits/circuits_uart",
+      source_url: "https://github.com/elixir-circuits/starter_port",
       compilers: [:elixir_make | Mix.compilers()],
       make_targets: ["all"],
       make_clean: ["clean"],
@@ -28,7 +28,7 @@ defmodule Circuits.UART.MixProject do
   def application, do: []
 
   defp description do
-    "Discover and use UARTs and serial ports in Elixir"
+    "Discover and use starter_ports and serial ports in Elixir"
   end
 
   defp package do
@@ -45,7 +45,7 @@ defmodule Circuits.UART.MixProject do
         "CHANGELOG.md"
       ],
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => "https://github.com/elixir-circuits/circuits_uart"}
+      links: %{"GitHub" => "https://github.com/elixir-circuits/starter_port"}
     }
   end
 

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef UART_ENUM_H
-#define UART_ENUM_H
+#ifndef starter_port_ENUM_H
+#define starter_port_ENUM_H
 
-struct serial_info {
+struct serial_info
+{
     char *name;
     char *description;
     char *manufacturer;
@@ -36,4 +37,4 @@ void serial_info_free_list(struct serial_info *info);
 // Prototypes for device-specific code
 struct serial_info *find_serialports();
 
-#endif // UART_ENUM_H
+#endif // starter_port_ENUM_H

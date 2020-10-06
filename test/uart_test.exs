@@ -1,6 +1,6 @@
-defmodule UARTTest do
+defmodule StarterPortTest do
   use ExUnit.Case
-  alias Circuits.UART
+  alias Starter.Port
 
   @moduledoc """
   This module provides common setup code for unit tests that require real
@@ -8,8 +8,8 @@ defmodule UARTTest do
 
   Define the following environment variables for your environment:
 
-    CIRCUITS_UART_PORT1 - e.g., COM1 or ttyS0
-    CIRCUITS_UART_PORT2
+    starter_port_PORT1 - e.g., COM1 or ttyS0
+    starter_port_PORT2
 
   The unit tests expect those ports to exist, be different ports,
   and be connected to each other through a null modem cable.
@@ -19,20 +19,20 @@ defmodule UARTTest do
   """
 
   def port1() do
-    System.get_env("CIRCUITS_UART_PORT1")
+    System.get_env("starter_port_PORT1")
   end
 
   def port2() do
-    System.get_env("CIRCUITS_UART_PORT2")
+    System.get_env("starter_port_PORT2")
   end
 
   def common_setup() do
     if is_nil(port1()) || is_nil(port2()) do
-      header = "Please define CIRCUITS_UART_PORT1 and CIRCUITS_UART_PORT2 in your
+      header = "Please define starter_port_PORT1 and starter_port_PORT2 in your
   environment (e.g. to ttyS0 or COM1) and connect them via a null
   modem cable.\n\n"
 
-      ports = UART.enumerate()
+      ports = StarterPort.enumerate()
 
       msg =
         case ports do
@@ -48,8 +48,8 @@ defmodule UARTTest do
       :timer.sleep(500)
     end
 
-    {:ok, uart1} = UART.start_link()
-    {:ok, uart2} = UART.start_link()
-    {:ok, uart1: uart1, uart2: uart2}
+    {:ok, starter_port1} = StarterPort.start_link()
+    {:ok, starter_port2} = StarterPort.start_link()
+    {:ok, starter_port1: starter_port1, starter_port2: starter_port2}
   end
 end

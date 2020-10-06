@@ -1,4 +1,4 @@
-defmodule Circuits.UART do
+defmodule Starter.Port do
   use GenServer
 
   # Many calls take timeouts for how long to wait for reading and writing
@@ -13,7 +13,7 @@ defmodule Circuits.UART do
   @port_timeout_slack 400
 
   @moduledoc """
-  Find and use UARTs, serial ports, and more.
+  Find and use starter_ports, serial ports, and more.
   """
 
   defmodule State do
@@ -31,7 +31,7 @@ defmodule Circuits.UART do
     defstruct port: nil,
               controlling_process: nil,
               name: :closed,
-              framing: Circuits.UART.Framing.None,
+              framing: Starter.Port.Framing.None,
               framing_state: nil,
               rx_framing_timeout: 0,
               queued_messages: [],
@@ -40,7 +40,7 @@ defmodule Circuits.UART do
               id: :name
   end
 
-  @type uart_option ::
+  @type starter_port_option ::
           {:active, boolean}
           | {:speed, non_neg_integer}
           | {:data_bits, 5..8}
@@ -71,17 +71,17 @@ defmodule Circuits.UART do
   """
   @spec enumerate() :: map
   def enumerate() do
-    Circuits.UART.Enumerator.enumerate()
+    Starter.Port.Enumerator.enumerate()
   end
 
   @doc """
-  Find UARTs.
+  Find starter_ports.
 
-  This is intended as a diagnostic function for finding UARTs that you may have
-  opened and forgotten about. Since a UART can only be opened once, this helps
+  This is intended as a diagnostic function for finding starter_ports that you may have
+  opened and forgotten about. Since a starter_port can only be opened once, this helps
   you find the problematic one so that you can close it.
 
-  It returns a list of {pid, uart_name} tuples.
+  It returns a list of {pid, starter_port_name} tuples.
 
   NOTE: Do not rely on this function in production code. It may change if
   updates to the interface make it more convenient to use.
@@ -89,22 +89,22 @@ defmodule Circuits.UART do
   @spec find_pids() :: [{binary | :closed, pid()}]
   def find_pids() do
     Process.list()
-    |> Enum.filter(&is_circuits_uart_process/1)
-    |> Enum.map(&circuits_uart_info/1)
+    |> Enum.filter(&is_starter_port_process/1)
+    |> Enum.map(&starter_port_info/1)
   end
 
-  defp is_circuits_uart_process(pid) do
+  defp is_starter_port_process(pid) do
     {:dictionary, dictionary} = Process.info(pid, :dictionary)
-    Keyword.get(dictionary, :"$initial_call") == {Circuits.UART, :init, 1}
+    Keyword.get(dictionary, :"$initial_call") == {Starter.Port, :init, 1}
   end
 
-  defp circuits_uart_info(pid) do
+  defp starter_port_info(pid) do
     {name, _opts} = configuration(pid)
     {pid, name}
   end
 
   @doc """
-  Start up a UART GenServer.
+  Start up a starter_port GenServer.
   """
   @spec start_link([term]) :: {:ok, pid} | {:error, term}
   def start_link(opts \\ []) do
@@ -112,7 +112,7 @@ defmodule Circuits.UART do
   end
 
   @doc """
-  Stop the UART GenServer.
+  Stop the starter_port GenServer.
   """
   @spec stop(GenServer.server()) :: :ok
   def stop(pid) do
@@ -143,30 +143,30 @@ defmodule Circuits.UART do
       strategy.
 
     * `:framing` - (`module` or `{module, args}`) set the framing for data.
-      The `module` must implement the `Circuits.UART.Framing` behaviour. See
-      `Circuits.UART.Framing.None`, `Circuits.UART.Framing.Line`, and
-      `Circuits.UART.Framing.FourByte`. The default is `Circuits.UART.Framing.None`.
+      The `module` must implement the `Starter.Port.Framing` behaviour. See
+      `Starter.Port.Framing.None`, `Starter.Port.Framing.Line`, and
+      `Starter.Port.Framing.FourByte`. The default is `Starter.Port.Framing.None`.
 
     * `:rx_framing_timeout` - (milliseconds) this specifies how long incomplete
       frames will wait for the remainder to be received. Timed out partial
       frames are reported as `{:partial, data}`. A timeout of <= 0 means to
       wait forever.
 
-    * `:id` - (`:name` or `:pid`) specify what to return with the uart active
-    messages. with `:name` the messages are returned as `{:circuits_uart,
-    serial_port_name, data}` otherwise they are returned as `{:circuits_uart,
-    pid, data}`. The name and pid are the name of the connected UART or the pid
-    of the Circuits.UART server pid as returned by `start_link/1`. The default
+    * `:id` - (`:name` or `:pid`) specify what to return with the starter_port active
+    messages. with `:name` the messages are returned as `{:starter_port,
+    serial_port_name, data}` otherwise they are returned as `{:starter_port,
+    pid, data}`. The name and pid are the name of the connected starter_port or the pid
+    of the Starter.Port server pid as returned by `start_link/1`. The default
     value is `:name`.
 
-  Active mode defaults to true and means that data received on the UART is
+  Active mode defaults to true and means that data received on the starter_port is
   reported in messages. The messages have the following form:
 
-     `{:circuits_uart, serial_port_id, data}`
+     `{:starter_port, serial_port_id, data}`
 
   or
 
-     `{:circuits_uart, serial_port_id, {:error, reason}}`
+     `{:starter_port, serial_port_id, {:error, reason}}`
 
   When in active mode, flow control can not be used to push back on the sender
   and messages will accumulated in the mailbox should data arrive fast enough.
@@ -180,7 +180,7 @@ defmodule Circuits.UART do
     * `:eagain`  - the port is already open
     * `:eacces`  - permission was denied when opening the port
   """
-  @spec open(GenServer.server(), binary, [uart_option]) :: :ok | {:error, term}
+  @spec open(GenServer.server(), binary, [starter_port_option]) :: :ok | {:error, term}
   def open(pid, name, opts \\ []) do
     GenServer.call(pid, {:open, name, opts})
   end
@@ -198,7 +198,7 @@ defmodule Circuits.UART do
   Change the serial port configuration after `open/3` has been called. See
   `open/3` for the valid options.
   """
-  @spec configure(GenServer.server(), [uart_option]) :: :ok | {:error, term}
+  @spec configure(GenServer.server(), [starter_port_option]) :: :ok | {:error, term}
   def configure(pid, opts) do
     GenServer.call(pid, {:configure, opts})
   end
@@ -206,7 +206,7 @@ defmodule Circuits.UART do
   @doc """
   Get the configuration of the serial port.
   """
-  @spec configuration(GenServer.server()) :: {binary() | :closed, [uart_option]}
+  @spec configuration(GenServer.server()) :: {binary() | :closed, [starter_port_option]}
   def configuration(pid) do
     GenServer.call(pid, :configuration)
   end
@@ -234,7 +234,7 @@ defmodule Circuits.UART do
   end
 
   @doc """
-  Write data to the opened UART. It's possible for the write to return before all
+  Write data to the opened starter_port. It's possible for the write to return before all
   of the data is actually transmitted. To wait for the data, call drain/1.
 
   This call blocks until all of the data to be written is in the operating
@@ -245,7 +245,7 @@ defmodule Circuits.UART do
 
   Typical error reasons:
 
-    * `:ebadf` - the UART is closed
+    * `:ebadf` - the starter_port is closed
   """
   @spec write(GenServer.server(), iodata(), non_neg_integer()) :: :ok | {:error, term}
   def write(pid, data, timeout \\ 5000) do
@@ -253,7 +253,7 @@ defmodule Circuits.UART do
   end
 
   @doc """
-  Read data from the UART. This call returns data as soon as it's available or
+  Read data from the starter_port. This call returns data as soon as it's available or
   after timing out.
 
   Returns `{:ok, binary}`, where `binary` is a binary data object that contains the
@@ -261,8 +261,8 @@ defmodule Circuits.UART do
 
   Typical error reasons:
 
-    * `:ebadf` - the UART is closed
-    * `:einval` - the UART is in active mode
+    * `:ebadf` - the starter_port is closed
+    * `:einval` - the starter_port is in active mode
   """
   @spec read(GenServer.server(), non_neg_integer()) :: {:ok, binary} | {:error, term}
   def read(pid, timeout \\ 5000) do
@@ -326,7 +326,7 @@ defmodule Circuits.UART do
 
   @doc """
   Change the controlling process that
-  receives events from an active uart.
+  receives events from an active starter_port.
   """
   @spec controlling_process(GenServer.server(), pid) :: :ok | {:error, term}
   def controlling_process(pid, controlling_process) when is_pid(controlling_process) do
@@ -335,7 +335,7 @@ defmodule Circuits.UART do
 
   # gen_server callbacks
   def init([]) do
-    executable = Application.app_dir(:circuits_uart, ["priv", "circuits_uart"]) |> to_charlist()
+    executable = Application.app_dir(:starter_port, ["priv", "starter_port"]) |> to_charlist()
 
     port =
       Port.open({:spawn_executable, executable}, [
@@ -588,7 +588,7 @@ defmodule Circuits.UART do
   end
 
   defp report_message(state, message) do
-    event = {:circuits_uart, message_id(state.id, state.name), message}
+    event = {:starter_port, message_id(state.id, state.name), message}
     send(state.controlling_process, event)
   end
 

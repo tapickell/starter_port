@@ -26,7 +26,7 @@
 /*
  * Erlang request/response processing
  */
-#define ERLCMD_BUF_SIZE 16384 // Large size is to support large UART writes
+#define ERLCMD_BUF_SIZE 16384 // Large size is to support large starter_port writes
 struct erlcmd
 {
     char buffer[ERLCMD_BUF_SIZE];
@@ -47,8 +47,8 @@ struct erlcmd
 };
 
 void erlcmd_init(struct erlcmd *handler,
-		 void (*request_handler)(const char *req, void *cookie),
-		 void *cookie);
+                 void (*request_handler)(const char *req, void *cookie),
+                 void *cookie);
 void erlcmd_send(char *response, size_t len);
 int erlcmd_process(struct erlcmd *handler);
 

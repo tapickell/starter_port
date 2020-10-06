@@ -27,7 +27,7 @@
 #include <string.h>
 #include <linux/limits.h>
 
-#include "uart_enum.h"
+#include "starter_port_enum.h"
 
 /* Linux serial port detection strategies
  *
@@ -55,18 +55,18 @@ static int is_tty_filename(const struct dirent *d)
     // http://code.qt.io/cgit/qt/qtserialport.git/tree/src/serialport/qserialportinfo_unix.cpp
 
     const char *name = d->d_name;
-    if (has_string_prefix("ttyS", name) ||         // Standard UART 8250 and etc.
-            has_string_prefix("ttyO", name) ||     // OMAP UART 8250 and etc.
-            has_string_prefix("ttyUSB", name) ||   // USB/serial converters PL2303 and etc.
-            has_string_prefix("ttyACM", name) ||   // CDC_ACM converters
-            has_string_prefix("ttyGS", name) ||    // Gadget serial device
-            has_string_prefix("ttyMI", name) ||    // MOXA pci/serial converters
-            has_string_prefix("ttymxc", name) ||   // Motorola IMX serial ports
-            has_string_prefix("ttyAMA", name) ||   // AMBA serial device for embedded platforms
-            has_string_prefix("ttyTHS", name) ||   // Serial device for embedded platforms on ARM
-            has_string_prefix("rfcomm", name) ||   // Bluetooth serial device
-            has_string_prefix("ifcomm", name) ||   // IrDA serial device
-            has_string_prefix("tnt", name))        // Virtual tty0tty serial device
+    if (has_string_prefix("ttyS", name) ||   // Standard starter_port 8250 and etc.
+        has_string_prefix("ttyO", name) ||   // OMAP starter_port 8250 and etc.
+        has_string_prefix("ttyUSB", name) || // USB/serial converters PL2303 and etc.
+        has_string_prefix("ttyACM", name) || // CDC_ACM converters
+        has_string_prefix("ttyGS", name) ||  // Gadget serial device
+        has_string_prefix("ttyMI", name) ||  // MOXA pci/serial converters
+        has_string_prefix("ttymxc", name) || // Motorola IMX serial ports
+        has_string_prefix("ttyAMA", name) || // AMBA serial device for embedded platforms
+        has_string_prefix("ttyTHS", name) || // Serial device for embedded platforms on ARM
+        has_string_prefix("rfcomm", name) || // Bluetooth serial device
+        has_string_prefix("ifcomm", name) || // IrDA serial device
+        has_string_prefix("tnt", name))      // Virtual tty0tty serial device
         return 1;
     else
         return 0;
@@ -83,15 +83,18 @@ static int try_read_all(const char *directory, const char *filename, char **resu
 
     FILE *fp = fopen(path, "r");
     free(path);
-    if (fp) {
+    if (fp)
+    {
         *result = malloc(max_filesize);
         size_t amount_read = fread(*result, 1, max_filesize - 1, fp);
         fclose(fp);
-        if (amount_read != 0) {
+        if (amount_read != 0)
+        {
             // NULL terminate the string
             (*result)[amount_read] = '\0';
             rc = 1;
-        } else
+        }
+        else
             free(*result);
     }
     return rc;
@@ -100,7 +103,8 @@ static int try_read_all(const char *directory, const char *filename, char **resu
 static int try_read_first_line(const char *directory, const char *filename, char **result)
 {
     int rc = try_read_all(directory, filename, result);
-    if (rc) {
+    if (rc)
+    {
         char *newline = strchr(*result, '\n');
         if (newline)
             *newline = '\0';
@@ -112,8 +116,9 @@ static int try_hex_read(const char *directory, const char *filename, int *result
 {
     char *str;
     int rc = try_read_first_line(directory, filename, &str);
-    if (rc) {
-        *result = (int) strtol(str, NULL, 16);
+    if (rc)
+    {
+        *result = (int)strtol(str, NULL, 16);
         free(str);
     }
     return rc;
@@ -127,12 +132,14 @@ static int get_serialport_info(const char *sys_devices_path, struct serial_info 
     rc |= try_hex_read(sys_devices_path, "idProduct", &info->pid);
     rc |= try_read_first_line(sys_devices_path, "product", &info->description);
 
-    if (info->manufacturer && info->vid == 0) {
+    if (info->manufacturer && info->vid == 0)
+    {
         // Try to get the vid from the manufacturer field.
-        info->vid = (int) strtol(info->manufacturer, NULL, 16);
+        info->vid = (int)strtol(info->manufacturer, NULL, 16);
     }
-    if (info->description && info->pid == 0) {
-        info->pid = (int) strtol(info->description, NULL, 16);
+    if (info->description && info->pid == 0)
+    {
+        info->pid = (int)strtol(info->description, NULL, 16);
     }
     return rc;
 }
@@ -148,7 +155,7 @@ static char *parse_uevent(const char *contents, const char *key)
     // Skip past the key and the equal sign.
     location += strlen(key) + 1;
     const char *end = strchr(location, '\n');
-    size_t len = (end != NULL) ? (size_t) (end - location) : strlen(location);
+    size_t len = (end != NULL) ? (size_t)(end - location) : strlen(location);
     char *value = malloc(len + 1);
     memcpy(value, location, len);
     value[len] = '\0';
@@ -159,7 +166,8 @@ static char *get_driver(const char *tty_path)
 {
     char *uevent_str;
     char *driver = NULL;
-    if (try_read_all(tty_path, "device/uevent", &uevent_str)) {
+    if (try_read_all(tty_path, "device/uevent", &uevent_str))
+    {
         driver = parse_uevent(uevent_str, "DRIVER");
         free(uevent_str);
     }
@@ -183,7 +191,8 @@ static int is_real_serial8250(const char *devname)
 
     int fd = open(devpath, O_RDWR | O_NONBLOCK | O_NOCTTY);
     free(devpath);
-    if (fd != -1) {
+    if (fd != -1)
+    {
         struct serial_struct serinfo;
         int rc = ioctl(fd, TIOCGSERIAL, &serinfo);
         close(fd);
@@ -204,17 +213,20 @@ static int is_real_serialport(const char *devname, const char *tty_path)
 {
     int rc;
     char *driver = get_driver(tty_path);
-    if (driver) {
+    if (driver)
+    {
         if (strcmp(driver, "serial8250") == 0 &&
-                !is_real_serial8250(devname))
+            !is_real_serial8250(devname))
             rc = 0;
         else
             rc = 1;
         free(driver);
-    } else {
+    }
+    else
+    {
         // No driver. The tnt and rfcomm ports don't show
         // a driver
-        if (has_string_prefix("rfcomm",devname) ||
+        if (has_string_prefix("rfcomm", devname) ||
             has_string_prefix("tnt", devname))
             rc = 1;
         else
@@ -232,19 +244,22 @@ struct serial_info *find_serialports()
     if (n < 0)
         return info;
 
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++)
+    {
         char *filepath = NULL;
         if (asprintf(&filepath, "/sys/class/tty/%s", namelist[i]->d_name) < 0)
             break;
 
-        if (!is_real_serialport(namelist[i]->d_name, filepath)) {
+        if (!is_real_serialport(namelist[i]->d_name, filepath))
+        {
             free(filepath);
             continue;
         }
 
         char symlink[PATH_MAX];
         ssize_t rc = readlink(filepath, symlink, sizeof(symlink));
-        if (rc > 0) {
+        if (rc > 0)
+        {
             symlink[rc] = 0;
             char *info_filepath = NULL;
             if (asprintf(&info_filepath, "/sys/class/tty/%s", symlink) < 0)
@@ -252,7 +267,8 @@ struct serial_info *find_serialports()
 
             struct serial_info *new_info = serial_info_alloc();
             new_info->name = strdup(namelist[i]->d_name);
-            while (info_filepath[0] != '\0') {
+            while (info_filepath[0] != '\0')
+            {
                 if (get_serialport_info(info_filepath, new_info))
                     break;
 

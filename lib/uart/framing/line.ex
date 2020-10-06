@@ -1,5 +1,5 @@
-defmodule Circuits.UART.Framing.Line do
-  @behaviour Circuits.UART.Framing
+defmodule Starter.Port.Framing.Line do
+  @behaviour Starter.Port.Framing
 
   @moduledoc """
   Each message is one line. This framer appends and removes newline sequences
@@ -27,7 +27,7 @@ defmodule Circuits.UART.Framing.Line do
   devices, a LTE modem for example, you can specify the separator like so:
 
   ```elixir
-  Circuits.UART.open(uart, tty_name, framing: {Line, separator: "\\r\\n"})
+  Starter.Port.open(starter_port, tty_name, framing: {Line, separator: "\\r\\n"})
   ```
 
   By default the separator is `"\\n"`. Currently only one or two character

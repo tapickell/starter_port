@@ -15,7 +15,7 @@
  */
 
 #ifdef __WIN32__
-#include "uart_comm.h"
+#include "starter_port_comm.h"
 #include "util.h"
 
 #include <windows.h>
@@ -24,7 +24,7 @@
 /*
  * Serial I/O on Windows Notes
  *
- * The goal for circuits_uart is to be able to poll the serial ports
+ * The goal for starter_port is to be able to poll the serial ports
  * using WaitForMultipleObjects. This means that overlapped I/O or
  * other asynchronous I/O needs to be used.
  *
@@ -43,8 +43,9 @@
  * everything in the input buffer in one call while still being
  * asynchronous.
  */
-struct uart {
-    // UART file handle
+struct starter_port
+{
+    // starter_port file handle
     HANDLE h;
 
     // Read handling
@@ -69,14 +70,14 @@ struct uart {
     DCB dcb;
 
     // Callbacks
-    uart_write_completed_callback write_completed;
-    uart_read_completed_callback read_completed;
-    uart_notify_read notify_read;
+    starter_port_write_completed_callback write_completed;
+    starter_port_read_completed_callback read_completed;
+    starter_port_notify_read notify_read;
 };
 
 static const char *last_error = "ok";
 
-const char *uart_last_error()
+const char *starter_port_last_error()
 {
     return last_error;
 }
@@ -85,7 +86,8 @@ static void record_last_error(int err)
 {
     // Convert the Windows last error to an appropriate
     // Erlang atom.
-    switch(err) {
+    switch (err)
+    {
     case NO_ERROR:
         last_error = "ok";
         break;
@@ -116,15 +118,21 @@ static void record_errno()
     record_last_error(GetLastError());
 }
 
-static BYTE to_windows_parity(enum uart_parity parity)
+static BYTE to_windows_parity(enum starter_port_parity parity)
 {
-    switch(parity) {
+    switch (parity)
+    {
     default:
-    case UART_PARITY_NONE:  return NOPARITY;
-    case UART_PARITY_MARK:  return MARKPARITY;
-    case UART_PARITY_EVEN:  return EVENPARITY;
-    case UART_PARITY_ODD:   return ODDPARITY;
-    case UART_PARITY_SPACE: return SPACEPARITY;
+    case starter_port_PARITY_NONE:
+        return NOPARITY;
+    case starter_port_PARITY_MARK:
+        return MARKPARITY;
+    case starter_port_PARITY_EVEN:
+        return EVENPARITY;
+    case starter_port_PARITY_ODD:
+        return ODDPARITY;
+    case starter_port_PARITY_SPACE:
+        return SPACEPARITY;
     }
 }
 
@@ -136,15 +144,15 @@ static BYTE to_windows_stopbits(int stop_bits)
         return ONESTOPBIT;
 }
 
-int uart_init(struct uart **pport,
-              uart_write_completed_callback write_completed,
-              uart_read_completed_callback read_completed,
-              uart_notify_read notify_read)
+int starter_port_init(struct starter_port **pport,
+                      starter_port_write_completed_callback write_completed,
+                      starter_port_read_completed_callback read_completed,
+                      starter_port_notify_read notify_read)
 {
-    struct uart *port = malloc(sizeof(struct uart));
+    struct starter_port *port = malloc(sizeof(struct starter_port));
     *pport = port;
 
-    memset(port, 0, sizeof(struct uart));
+    memset(port, 0, sizeof(struct starter_port));
     port->h = INVALID_HANDLE_VALUE;
     port->active_mode_enabled = true;
     port->write_data = NULL;
@@ -157,7 +165,8 @@ int uart_init(struct uart **pport,
     // Create the overlapped I/O events that will be needed
     // once the device has been opened.
     port->read_overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (port->read_overlapped.hEvent == NULL) {
+    if (port->read_overlapped.hEvent == NULL)
+    {
         record_errno();
         return -1;
     }
@@ -165,7 +174,8 @@ int uart_init(struct uart **pport,
     port->read_overlapped.OffsetHigh = 0;
 
     port->write_overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (port->write_overlapped.hEvent == NULL) {
+    if (port->write_overlapped.hEvent == NULL)
+    {
         record_errno();
         return -1;
     }
@@ -173,7 +183,8 @@ int uart_init(struct uart **pport,
     port->write_overlapped.OffsetHigh = 0;
 
     port->events_overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (port->events_overlapped.hEvent == NULL) {
+    if (port->events_overlapped.hEvent == NULL)
+    {
         record_errno();
         return -1;
     }
@@ -183,7 +194,7 @@ int uart_init(struct uart **pport,
     return 0;
 }
 
-static int update_write_timeout(struct uart *port, int timeout)
+static int update_write_timeout(struct starter_port *port, int timeout)
 {
     COMMTIMEOUTS timeouts;
 
@@ -200,39 +211,48 @@ static int update_write_timeout(struct uart *port, int timeout)
     timeouts.ReadTotalTimeoutMultiplier = 0;
     timeouts.ReadTotalTimeoutConstant = 0;
 
-    if (timeout == 0) {
+    if (timeout == 0)
+    {
         // Don't block
 
         // This doesn't seem like a useful case, but handle it for completeness
         // by giving the shortest possible timeout.
         timeouts.WriteTotalTimeoutConstant = 1;
         timeouts.WriteTotalTimeoutMultiplier = 0;
-    } else if (timeout < 0) {
+    }
+    else if (timeout < 0)
+    {
         // A value of zero for both the WriteTotalTimeoutMultiplier and
         // WriteTotalTimeoutConstant members indicates that total time-outs are not
         // used for write operations.
         timeouts.WriteTotalTimeoutConstant = 0;
         timeouts.WriteTotalTimeoutMultiplier = 0;
-    } else {
+    }
+    else
+    {
         // Block for the specified time
         timeouts.WriteTotalTimeoutConstant = timeout;
         timeouts.WriteTotalTimeoutMultiplier = 0;
     }
 
-    if (!SetCommTimeouts(port->h, &timeouts)) {
+    if (!SetCommTimeouts(port->h, &timeouts))
+    {
         debug("SetCommTimeouts failed");
         record_errno();
         return -1;
-    } else {
+    }
+    else
+    {
         port->current_write_timeout = timeout;
         return 0;
     }
 }
 
-static int uart_init_dcb(struct uart *port)
+static int starter_port_init_dcb(struct starter_port *port)
 {
     port->dcb.DCBlength = sizeof(DCB);
-    if (!GetCommState(port->h, &port->dcb)) {
+    if (!GetCommState(port->h, &port->dcb))
+    {
         debug("GetCommState failed");
         record_errno();
         return -1;
@@ -244,11 +264,11 @@ static int uart_init_dcb(struct uart *port)
     port->dcb.fBinary = TRUE;
 
     // The rest of the fields will be set in
-    // calls to uart_config_line.
+    // calls to starter_port_config_line.
     return 0;
 }
 
-static int uart_config_line(struct uart *port, const struct uart_config *config)
+static int starter_port_config_line(struct starter_port *port, const struct starter_port_config *config)
 {
     // Note:
     //  dcb.fRtsControl and dcb.fDtrControl are not modified unless switching
@@ -276,53 +296,61 @@ static int uart_config_line(struct uart *port, const struct uart_config *config)
     if (port->dcb.fRtsControl == RTS_CONTROL_HANDSHAKE)
         port->dcb.fRtsControl = RTS_CONTROL_ENABLE;
 
-    switch (config->flow_control) {
+    switch (config->flow_control)
+    {
     default:
-    case UART_FLOWCONTROL_NONE:
+    case starter_port_FLOWCONTROL_NONE:
         break;
-    case UART_FLOWCONTROL_SOFTWARE:
+    case starter_port_FLOWCONTROL_SOFTWARE:
         port->dcb.fInX = TRUE;
         port->dcb.fOutX = TRUE;
         break;
-    case UART_FLOWCONTROL_HARDWARE:
+    case starter_port_FLOWCONTROL_HARDWARE:
         port->dcb.fOutxCtsFlow = TRUE;
         port->dcb.fRtsControl = RTS_CONTROL_HANDSHAKE;
         break;
     }
 
-    if (!SetCommState(port->h, &port->dcb)) {
+    if (!SetCommState(port->h, &port->dcb))
+    {
         record_errno();
         return -1;
     }
     return 0;
 }
 
-static int start_async_reads(struct uart *port) {
+static int start_async_reads(struct starter_port *port)
+{
     debug("Starting async read");
     BOOL rc = WaitCommEvent(
-                port->h,
-                &port->received_event_mask,
-                &port->events_overlapped);
-    if (rc) {
+        port->h,
+        &port->received_event_mask,
+        &port->events_overlapped);
+    if (rc)
+    {
         debug("WaitCommEvent returned synchronously");
-    } else if (GetLastError() != ERROR_IO_PENDING) {
-        debug("start_async_reads WaitCommEvent failed?? %d", (int) GetLastError());
+    }
+    else if (GetLastError() != ERROR_IO_PENDING)
+    {
+        debug("start_async_reads WaitCommEvent failed?? %d", (int)GetLastError());
         record_errno();
         return -1;
-    } else {
+    }
+    else
+    {
         debug("WaitCommEvent returned asynchronously");
     }
 
     return 0;
 }
 
-int uart_open(struct uart *port, const char *name, const struct uart_config *config)
+int starter_port_open(struct starter_port *port, const char *name, const struct starter_port_config *config)
 {
     // If the port is open, close it and re-open it.
-    uart_close(port);
+    starter_port_close(port);
 
     // name is "COM1", etc. We need "\\.\COM1", so prepend the "\\.\"
-#define COM_PORT_PREFIX         "\\\\.\\"
+#define COM_PORT_PREFIX "\\\\.\\"
     int namelen = strlen(name);
     char windows_port_path[namelen + sizeof(COM_PORT_PREFIX) + 1];
     sprintf(windows_port_path, COM_PORT_PREFIX "%s", name);
@@ -337,13 +365,15 @@ int uart_open(struct uart *port, const char *name, const struct uart_config *con
 
     port->active_mode_enabled = config->active;
 
-    if (port->h == INVALID_HANDLE_VALUE) {
+    if (port->h == INVALID_HANDLE_VALUE)
+    {
         record_errno();
         return -1;
     }
 
-    if (uart_init_dcb(port) < 0 ||
-            uart_config_line(port, config) < 0) {
+    if (starter_port_init_dcb(port) < 0 ||
+        starter_port_config_line(port, config) < 0)
+    {
         CloseHandle(port->h);
         port->h = INVALID_HANDLE_VALUE;
         return -1;
@@ -357,8 +387,9 @@ int uart_open(struct uart *port, const char *name, const struct uart_config *con
 
     // TODO: Watch for comm events: (break, CTS changed, DSR changed, err, ring, rlsd)
     port->desired_event_mask = EV_RXCHAR;
-    if (!SetCommMask(port->h, port->desired_event_mask)) {
-        debug("SetCommMask failed? %d", (int) GetLastError());
+    if (!SetCommMask(port->h, port->desired_event_mask))
+    {
+        debug("SetCommMask failed? %d", (int)GetLastError());
         record_errno();
         CloseHandle(port->h);
         port->h = INVALID_HANDLE_VALUE;
@@ -370,7 +401,8 @@ int uart_open(struct uart *port, const char *name, const struct uart_config *con
     ResetEvent(port->write_overlapped.hEvent);
     ResetEvent(port->read_overlapped.hEvent);
 
-    if (port->active_mode_enabled && start_async_reads(port) < 0) {
+    if (port->active_mode_enabled && start_async_reads(port) < 0)
+    {
         CloseHandle(port->h);
         port->h = INVALID_HANDLE_VALUE;
         return -1;
@@ -379,17 +411,18 @@ int uart_open(struct uart *port, const char *name, const struct uart_config *con
     return 0;
 }
 
-int uart_is_open(struct uart *port)
+int starter_port_is_open(struct starter_port *port)
 {
     return port->h != INVALID_HANDLE_VALUE;
 }
 
-int uart_configure(struct uart *port, const struct uart_config *config)
+int starter_port_configure(struct starter_port *port, const struct starter_port_config *config)
 {
     bool active_mode_changed = false;
-    if (config->active != port->active_mode_enabled) {
-      port->active_mode_enabled = config->active;
-      active_mode_changed = true;
+    if (config->active != port->active_mode_enabled)
+    {
+        port->active_mode_enabled = config->active;
+        active_mode_changed = true;
     }
 
     // Updating closed ports is easy.
@@ -397,30 +430,36 @@ int uart_configure(struct uart *port, const struct uart_config *config)
         return 0;
 
     // Update active mode
-    if (active_mode_changed) {
+    if (active_mode_changed)
+    {
         if (port->read_pending)
             errx(EXIT_FAILURE, "Elixir is supposed to queue read ops");
 
         port->active_mode_enabled = config->active;
-        if (port->active_mode_enabled) {
+        if (port->active_mode_enabled)
+        {
             port->desired_event_mask |= EV_RXCHAR;
             if (!SetCommMask(port->h, port->desired_event_mask))
-                errx(EXIT_FAILURE, "uart_configure: SetCommMask failure unexpected: 0x%08x, Error=%d", (int) port->desired_event_mask, (int) GetLastError());
+                errx(EXIT_FAILURE, "starter_port_configure: SetCommMask failure unexpected: 0x%08x, Error=%d", (int)port->desired_event_mask, (int)GetLastError());
 
-            if (start_async_reads(port) < 0) {
+            if (start_async_reads(port) < 0)
+            {
                 CloseHandle(port->h);
                 port->h = INVALID_HANDLE_VALUE;
                 return -1;
             }
-        } else {
+        }
+        else
+        {
             port->desired_event_mask &= ~EV_RXCHAR;
             if (!SetCommMask(port->h, port->desired_event_mask))
-                errx(EXIT_FAILURE, "uart_configure: SetCommMask failure unexpected: 0x%08x, Error=%d", (int) port->desired_event_mask, (int) GetLastError());
+                errx(EXIT_FAILURE, "starter_port_configure: SetCommMask failure unexpected: 0x%08x, Error=%d", (int)port->desired_event_mask, (int)GetLastError());
         }
     }
 
-    if (uart_config_line(port, config) < 0) {
-        debug("uart_config_line failed");
+    if (starter_port_config_line(port, config) < 0)
+    {
+        debug("starter_port_config_line failed");
         record_errno();
         return -1;
     }
@@ -432,21 +471,22 @@ int uart_configure(struct uart *port, const struct uart_config *config)
  * @brief Called internally when an unrecoverable error makes the port unusable
  * @param port
  */
-static void uart_close_on_error(struct uart *port, int reason)
+static void starter_port_close_on_error(struct starter_port *port, int reason)
 {
-    uart_close(port);
+    starter_port_close(port);
 
     // If active mode, notify that the failure occurred.
-    // NOTE: This isn't done in uart_close, since if the user
+    // NOTE: This isn't done in starter_port_close, since if the user
     //       is closing the port, they don't need an event telling
     //       them that something happened.
-    if (port->active_mode_enabled) {
+    if (port->active_mode_enabled)
+    {
         record_last_error(reason);
         port->notify_read(reason, NULL, 0);
     }
 }
 
-int uart_close(struct uart *port)
+int starter_port_close(struct starter_port *port)
 {
     if (port->h == INVALID_HANDLE_VALUE)
         return 0;
@@ -455,7 +495,8 @@ int uart_close(struct uart *port)
     PurgeComm(port->h, PURGE_RXABORT | PURGE_TXABORT);
 
     // Cancel any pending data to be written.
-    if (port->write_data) {
+    if (port->write_data)
+    {
         record_last_error(ERROR_CANCELLED);
         (port->write_completed)(-1, port->write_data);
 
@@ -463,7 +504,8 @@ int uart_close(struct uart *port)
     }
 
     // Cancel any pending reads
-    if (port->read_pending) {
+    if (port->read_pending)
+    {
         record_last_error(ERROR_CANCELLED);
         port->read_completed(-1, NULL, 0);
 
@@ -475,14 +517,16 @@ int uart_close(struct uart *port)
     return 0;
 }
 
-void uart_write(struct uart *port, const uint8_t *data, size_t len, int timeout)
+void starter_port_write(struct starter_port *port, const uint8_t *data, size_t len, int timeout)
 {
     if (port->write_data)
         errx(EXIT_FAILURE, "Implement write queuing in Elixir!");
 
-    if (port->current_write_timeout != timeout) {
-        if (update_write_timeout(port, timeout) < 0) {
-            warnx("uart_write() update_timeouts failed?");
+    if (port->current_write_timeout != timeout)
+    {
+        if (update_write_timeout(port, timeout) < 0)
+        {
+            warnx("starter_port_write() update_timeouts failed?");
             port->write_completed(-1, data);
             return;
         }
@@ -490,28 +534,34 @@ void uart_write(struct uart *port, const uint8_t *data, size_t len, int timeout)
 
     port->write_data = data;
 
-    debug("Going to write %d bytes", (int) len);
+    debug("Going to write %d bytes", (int)len);
     if (WriteFile(port->h,
                   data,
                   len,
                   NULL,
-                  &port->write_overlapped)) {
+                  &port->write_overlapped))
+    {
         debug("WriteFile synchronous completion signalled.");
         // Based on trial and error, the proper handling here is the same as
         // the asynchronous completion case that we'd expect.
-    } else if (GetLastError() != ERROR_IO_PENDING) {
-        debug("WriteFile failed %d", (int) GetLastError());
+    }
+    else if (GetLastError() != ERROR_IO_PENDING)
+    {
+        debug("WriteFile failed %d", (int)GetLastError());
         record_errno();
         port->write_completed(-1, data);
-    } else {
+    }
+    else
+    {
         debug("WriteFile asynchronous completion");
     }
 }
 
-void uart_read(struct uart *port, int timeout)
+void starter_port_read(struct starter_port *port, int timeout)
 {
-    debug("uart_read");
-    if (port->active_mode_enabled) {
+    debug("starter_port_read");
+    if (port->active_mode_enabled)
+    {
         debug("don't call read when in active mode");
         record_last_error(ERROR_INVALID_PARAMETER);
         port->read_completed(-1, NULL, 0);
@@ -522,21 +572,23 @@ void uart_read(struct uart *port, int timeout)
         errx(EXIT_FAILURE, "Implement read queuing in Elixir");
 
     port->read_pending = true;
-    port->read_completion_deadline = current_time() + (timeout < 0 ? ONE_YEAR_MILLIS : (uint64_t) timeout);
+    port->read_completion_deadline = current_time() + (timeout < 0 ? ONE_YEAR_MILLIS : (uint64_t)timeout);
 
-    if (! (port->desired_event_mask & EV_RXCHAR)) {
+    if (!(port->desired_event_mask & EV_RXCHAR))
+    {
         port->desired_event_mask |= EV_RXCHAR;
         if (!SetCommMask(port->h, port->desired_event_mask))
-            errx(EXIT_FAILURE, "uart_read: SetCommMask failure unexpected: 0x%08x, Error=%d", (int) port->desired_event_mask, (int) GetLastError());
+            errx(EXIT_FAILURE, "starter_port_read: SetCommMask failure unexpected: 0x%08x, Error=%d", (int)port->desired_event_mask, (int)GetLastError());
     }
 
-    if (start_async_reads(port) < 0) {
+    if (start_async_reads(port) < 0)
+    {
         port->read_pending = false;
         port->read_completed(-1, NULL, 0);
     }
 }
 
-int uart_drain(struct uart *port)
+int starter_port_drain(struct starter_port *port)
 {
     // NOTE: This is pretty easy to support if allowed by the Elixir GenServer,
     //       but I can't think of a use case.
@@ -548,7 +600,7 @@ int uart_drain(struct uart *port)
     return 0;
 }
 
-int uart_flush(struct uart *port, enum uart_direction direction)
+int starter_port_flush(struct starter_port *port, enum starter_port_direction direction)
 {
     // NOTE: This could be supported if allowed by the Elixir GenServer.
     //       Not sure on the use case, though.
@@ -556,16 +608,17 @@ int uart_flush(struct uart *port, enum uart_direction direction)
         errx(EXIT_FAILURE, "Elixir is supposed to queue read operations");
 
     DWORD flags;
-    switch (direction) {
-    case UART_DIRECTION_RECEIVE:
+    switch (direction)
+    {
+    case starter_port_DIRECTION_RECEIVE:
         flags = PURGE_RXCLEAR;
         break;
 
-    case UART_DIRECTION_TRANSMIT:
+    case starter_port_DIRECTION_TRANSMIT:
         flags = PURGE_TXCLEAR;
         break;
 
-    case UART_DIRECTION_BOTH:
+    case starter_port_DIRECTION_BOTH:
     default:
         flags = PURGE_RXCLEAR | PURGE_TXCLEAR;
         break;
@@ -576,18 +629,22 @@ int uart_flush(struct uart *port, enum uart_direction direction)
     return 0;
 }
 
-int uart_set_rts(struct uart *port, bool val)
+int starter_port_set_rts(struct starter_port *port, bool val)
 {
     DWORD func;
-    if (val) {
+    if (val)
+    {
         func = SETRTS;
         port->dcb.fRtsControl = RTS_CONTROL_ENABLE; // Cache state
-    } else {
+    }
+    else
+    {
         func = CLRRTS;
         port->dcb.fRtsControl = RTS_CONTROL_DISABLE;
     }
-    if (!EscapeCommFunction(port->h, func)) {
-        debug("EscapeCommFunction(SETRTS/CLRRTS) failed %d", (int) GetLastError());
+    if (!EscapeCommFunction(port->h, func))
+    {
+        debug("EscapeCommFunction(SETRTS/CLRRTS) failed %d", (int)GetLastError());
         record_errno();
         return -1;
     }
@@ -595,18 +652,22 @@ int uart_set_rts(struct uart *port, bool val)
     return 0;
 }
 
-int uart_set_dtr(struct uart *port, bool val)
+int starter_port_set_dtr(struct starter_port *port, bool val)
 {
     DWORD func;
-    if (val) {
+    if (val)
+    {
         func = SETDTR;
         port->dcb.fDtrControl = DTR_CONTROL_ENABLE; // Cache state
-    } else {
+    }
+    else
+    {
         func = CLRDTR;
         port->dcb.fDtrControl = DTR_CONTROL_DISABLE;
     }
-    if (!EscapeCommFunction(port->h, func)) {
-        debug("EscapeCommFunction(SETDTR/CLRDTR) failed %d", (int) GetLastError());
+    if (!EscapeCommFunction(port->h, func))
+    {
+        debug("EscapeCommFunction(SETDTR/CLRDTR) failed %d", (int)GetLastError());
         record_errno();
         return -1;
     }
@@ -614,7 +675,7 @@ int uart_set_dtr(struct uart *port, bool val)
     return 0;
 }
 
-int uart_set_break(struct uart *port, bool val)
+int starter_port_set_break(struct starter_port *port, bool val)
 {
     BOOL rc;
     if (val)
@@ -622,8 +683,9 @@ int uart_set_break(struct uart *port, bool val)
     else
         rc = ClearCommBreak(port->h);
 
-    if (!rc) {
-        debug("SendCommBreak or ClearCommBreak failed %d", (int) GetLastError());
+    if (!rc)
+    {
+        debug("SendCommBreak or ClearCommBreak failed %d", (int)GetLastError());
         record_errno();
         return -1;
     }
@@ -631,11 +693,12 @@ int uart_set_break(struct uart *port, bool val)
     return 0;
 }
 
-int uart_get_signals(struct uart *port, struct uart_signals *sig)
+int starter_port_get_signals(struct starter_port *port, struct starter_port_signals *sig)
 {
     DWORD modem_status;
-    if (!GetCommModemStatus(port->h, &modem_status)) {
-        debug("GetCommModemStatus failed %d", (int) GetLastError());
+    if (!GetCommModemStatus(port->h, &modem_status))
+    {
+        debug("GetCommModemStatus failed %d", (int)GetLastError());
         record_errno();
         return -1;
     }
@@ -652,7 +715,7 @@ int uart_get_signals(struct uart *port, struct uart_signals *sig)
     return 0;
 }
 
-int uart_flush_all(struct uart *port)
+int starter_port_flush_all(struct starter_port *port)
 {
     // This is currently only called on an unexpected exit
     PurgeComm(port->h, PURGE_RXABORT | PURGE_RXCLEAR | PURGE_TXABORT | PURGE_TXCLEAR);
@@ -665,37 +728,47 @@ int uart_flush_all(struct uart *port)
 static void update_timeout(uint64_t deadline, DWORD *timeout)
 {
     uint64_t time_to_wait = deadline - current_time();
-    if (time_to_wait > ONE_YEAR_MILLIS) {
+    if (time_to_wait > ONE_YEAR_MILLIS)
+    {
         // We're already late. Force poll() to return immediately. Maybe the
         // system will be ready?
         *timeout = 0;
-    } else if (time_to_wait > MAXDWORD) {
+    }
+    else if (time_to_wait > MAXDWORD)
+    {
         // If the time to wait is over 24 days, wait forever.
         // (This means that we don't need to lower the current timeout.)
-    } else {
-        DWORD our_timeout = (DWORD) time_to_wait;
+    }
+    else
+    {
+        DWORD our_timeout = (DWORD)time_to_wait;
         if (our_timeout < *timeout)
             *timeout = our_timeout;
     }
 }
 
-int uart_add_wfmo_handles(struct uart *port, HANDLE *handles, DWORD *timeout)
+int starter_port_add_wfmo_handles(struct starter_port *port, HANDLE *handles, DWORD *timeout)
 {
-    debug("uart_add_wfmo_handles");
+    debug("starter_port_add_wfmo_handles");
     int count = 0;
     // Check if a file handle is open and waiting
-    if (port->h) {
-        if (port->write_data) {
+    if (port->h)
+    {
+        if (port->write_data)
+        {
             debug("  adding write handle");
             handles[count] = port->write_overlapped.hEvent;
             count++;
         }
-        if (port->read_pending) {
+        if (port->read_pending)
+        {
             debug("  adding read handle (passive mode)");
             update_timeout(port->read_completion_deadline, timeout);
             handles[count] = port->events_overlapped.hEvent;
             count++;
-        } else if (port->active_mode_enabled) {
+        }
+        else if (port->active_mode_enabled)
+        {
             debug("  adding read handle (active mode)");
             handles[count] = port->events_overlapped.hEvent;
             count++;
@@ -704,18 +777,21 @@ int uart_add_wfmo_handles(struct uart *port, HANDLE *handles, DWORD *timeout)
     return count;
 }
 
-void uart_process_handle(struct uart *port, HANDLE *event)
+void starter_port_process_handle(struct starter_port *port, HANDLE *event)
 {
-    if (event == port->write_overlapped.hEvent) {
-        debug("uart_process_handle: write event");
-        if (port->write_data) {
+    if (event == port->write_overlapped.hEvent)
+    {
+        debug("starter_port_process_handle: write event");
+        if (port->write_data)
+        {
             ResetEvent(port->write_overlapped.hEvent);
             DWORD bytes_written;
             BOOL rc = GetOverlappedResult(port->h, &port->write_overlapped, &bytes_written, FALSE);
             DWORD last_error = GetLastError();
 
-            debug("Back from write %d, %d", (int) rc, (int) last_error);
-            if (rc || last_error != ERROR_IO_INCOMPLETE) {
+            debug("Back from write %d, %d", (int)rc, (int)last_error);
+            if (rc || last_error != ERROR_IO_INCOMPLETE)
+            {
                 record_last_error(last_error);
                 const uint8_t *data = port->write_data;
                 port->write_data = NULL;
@@ -723,26 +799,31 @@ void uart_process_handle(struct uart *port, HANDLE *event)
             }
         }
     }
-    if (event == port->events_overlapped.hEvent) {
-        debug("uart_process_handle: event event");
+    if (event == port->events_overlapped.hEvent)
+    {
+        debug("starter_port_process_handle: event event");
         ResetEvent(port->events_overlapped.hEvent);
-        if (port->read_pending || port->active_mode_enabled) {
+        if (port->read_pending || port->active_mode_enabled)
+        {
             DWORD amount_read;
             BOOL rc = GetOverlappedResult(port->h, &port->events_overlapped, &amount_read, FALSE);
             DWORD last_error = rc ? NO_ERROR : GetLastError();
-            debug("Got an events event: %d %d %d!!", rc, (int) last_error, (int) amount_read);
+            debug("Got an events event: %d %d %d!!", rc, (int)last_error, (int)amount_read);
 
             // If still incomplete, try again later.
             // TODO: Clean up next line
-            if (last_error == ERROR_IO_INCOMPLETE) {
+            if (last_error == ERROR_IO_INCOMPLETE)
+            {
                 debug("incomplete -> trying again");
                 return;
             }
 
-            if (rc) {
+            if (rc)
+            {
                 // Replace line below when supporting hw line events in addition
                 // to EV_RXCHAR.
-                if (!(port->received_event_mask & EV_RXCHAR)) {
+                if (!(port->received_event_mask & EV_RXCHAR))
+                {
                     debug("unhandled received event: 0x%08x", port->received_event_mask);
                     if (port->active_mode_enabled)
                         start_async_reads(port);
@@ -751,56 +832,70 @@ void uart_process_handle(struct uart *port, HANDLE *event)
                 }
 
                 rc = ReadFile(port->h, port->read_buffer, sizeof(port->read_buffer), &amount_read, &port->read_overlapped);
-                debug("ReadFile returned: %d %d %d!!", rc, (int) GetLastError(), (int) amount_read);
+                debug("ReadFile returned: %d %d %d!!", rc, (int)GetLastError(), (int)amount_read);
 
-                if (rc) {
+                if (rc)
+                {
                     // Synchronouse return
 #ifdef DEBUG
-                    if (amount_read) {
+                    if (amount_read)
+                    {
                         port->read_buffer[amount_read] = 0;
-                        debug("  sync read %d bytes: %s", (int) amount_read, port->read_buffer);
+                        debug("  sync read %d bytes: %s", (int)amount_read, port->read_buffer);
                     }
 #endif
                     last_error = NO_ERROR;
-                } else {
+                }
+                else
+                {
                     // This case seems to occur more with passive mode reads.
                     last_error = GetLastError();
-                    if (last_error == ERROR_IO_PENDING) {
+                    if (last_error == ERROR_IO_PENDING)
+                    {
                         // Bytes were notified. They should come real soon now.
                         WaitForSingleObject(port->read_overlapped.hEvent, 100);
                         ResetEvent(port->read_overlapped.hEvent);
                         rc = GetOverlappedResult(port->h, &port->read_overlapped, &amount_read, FALSE);
-                        debug("ReadFile result: %d %d %d!!", rc, (int) GetLastError(), (int) amount_read);
+                        debug("ReadFile result: %d %d %d!!", rc, (int)GetLastError(), (int)amount_read);
 #ifdef DEBUG
-                        if (amount_read) {
+                        if (amount_read)
+                        {
                             port->read_buffer[amount_read] = 0;
-                            debug("  async read %d bytes: %s", (int) amount_read, port->read_buffer);
+                            debug("  async read %d bytes: %s", (int)amount_read, port->read_buffer);
                         }
 #endif
                         last_error = rc ? NO_ERROR : GetLastError();
-                    } else {
+                    }
+                    else
+                    {
                         // Unrecoverable error
-                        debug("Unrecoverable error on ReadFile: %d", (int) GetLastError());
-                        uart_close_on_error(port, last_error);
+                        debug("Unrecoverable error on ReadFile: %d", (int)GetLastError());
+                        starter_port_close_on_error(port, last_error);
                         return;
                     }
                 }
-            } else {
+            }
+            else
+            {
                 // Unrecoverable error
-                debug("Unrecoverable error on event: %d", (int) GetLastError());
-                uart_close_on_error(port, last_error);
+                debug("Unrecoverable error on event: %d", (int)GetLastError());
+                starter_port_close_on_error(port, last_error);
                 return;
             }
             record_last_error(last_error);
 
-            if (port->active_mode_enabled) {
+            if (port->active_mode_enabled)
+            {
                 // Active mode: notify input and start listening again
                 port->notify_read(last_error, port->read_buffer, amount_read);
                 if (rc)
                     start_async_reads(port);
-            } else {
+            }
+            else
+            {
                 // Passive mode: notify result
-                if (port->read_pending) {
+                if (port->read_pending)
+                {
                     port->read_pending = false;
                     port->read_completed(rc ? 0 : -1, port->read_buffer, amount_read);
                 }
@@ -809,20 +904,21 @@ void uart_process_handle(struct uart *port, HANDLE *event)
     }
 }
 
-void uart_process_timeout(struct uart *port)
+void starter_port_process_timeout(struct starter_port *port)
 {
     // Timeouts only apply to synchronous reads
     if (!port->read_pending)
         return;
 
     uint64_t time_to_wait = port->read_completion_deadline - current_time();
-    if (time_to_wait == 0 || time_to_wait > ONE_YEAR_MILLIS) { /* subtraction wrapped */
+    if (time_to_wait == 0 || time_to_wait > ONE_YEAR_MILLIS)
+    { /* subtraction wrapped */
         // Handle timeout.
 
         // Stop waiting for RXCHAR events
         port->desired_event_mask &= ~EV_RXCHAR;
         if (!SetCommMask(port->h, port->desired_event_mask))
-            errx(EXIT_FAILURE, "uart_process_timeout: SetCommMask failure unexpected: 0x%08x, Error=%d", (int) port->desired_event_mask, (int) GetLastError());
+            errx(EXIT_FAILURE, "starter_port_process_timeout: SetCommMask failure unexpected: 0x%08x, Error=%d", (int)port->desired_event_mask, (int)GetLastError());
 
         // The Windows doc says that changing the CommMask will cause pending
         // overlapped ops to return immediately. Things should be set up so

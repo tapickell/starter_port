@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "uart_enum.h"
+#include "starter_port_enum.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 struct serial_info *serial_info_alloc()
 {
-    struct serial_info *info = (struct serial_info *) malloc(sizeof(struct serial_info));
+    struct serial_info *info = (struct serial_info *)malloc(sizeof(struct serial_info));
     memset(info, 0, sizeof(struct serial_info));
     return info;
 }
@@ -44,11 +44,11 @@ void serial_info_free(struct serial_info *info)
 
 void serial_info_free_list(struct serial_info *info)
 {
-    while (info) {
+    while (info)
+    {
         struct serial_info *next = info->next;
         serial_info_free(info);
         free(info);
         info = next;
     }
 }
-

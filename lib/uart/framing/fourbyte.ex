@@ -1,5 +1,5 @@
-defmodule Circuits.UART.Framing.FourByte do
-  @behaviour Circuits.UART.Framing
+defmodule Starter.Port.Framing.FourByte do
+  @behaviour Starter.Port.Framing
 
   @moduledoc """
   Each message is 4 bytes. This framer doesn't do anything for the transmit

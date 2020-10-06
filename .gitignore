@@ -20,11 +20,11 @@ erl_crash.dump
 *.ez
 
 # Ignore package tarball (built via "mix hex.build").
-circuits_uart-*.tar
+starter_port-*.tar
 
 # Ignore C object files and executables
 /priv
 *.o
 
 # Ignore debug logs
-circuits_uart.log
+starter_port.log

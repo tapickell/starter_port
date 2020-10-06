@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-#include "uart_comm.h"
+#include "starter_port_comm.h"
 
 /**
- * @brief Initialize UART configuration defaults
+ * @brief Initialize starter_port configuration defaults
  *
  * The user is expected to really expected to provide
  * the configuration they want.
  *
  * @param config
  */
-void uart_default_config(struct uart_config *config)
+void starter_port_default_config(struct starter_port_config *config)
 {
     config->active = true;
     config->speed = 9600;
     config->data_bits = 8;
     config->stop_bits = 1;
-    config->parity = UART_PARITY_NONE;
-    config->flow_control = UART_FLOWCONTROL_NONE;
+    config->parity = starter_port_PARITY_NONE;
+    config->flow_control = starter_port_FLOWCONTROL_NONE;
 }

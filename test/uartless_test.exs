@@ -1,35 +1,35 @@
-defmodule UARTlessTest do
+defmodule StarterPortlessTest do
   use ExUnit.Case
-  alias Circuits.UART
+  alias Starter.Port
 
   # These tests all run with or without a serial port
 
   test "enumerate returns a map" do
-    ports = UART.enumerate()
+    ports = StarterPort.enumerate()
     assert is_map(ports)
   end
 
   test "start_link without arguments works" do
-    {:ok, pid} = UART.start_link()
+    {:ok, pid} = StarterPort.start_link()
     assert is_pid(pid)
   end
 
   test "open bogus serial port" do
-    {:ok, pid} = UART.start_link()
-    assert {:error, :enoent} = UART.open(pid, "bogustty")
+    {:ok, pid} = StarterPort.start_link()
+    assert {:error, :enoent} = StarterPort.open(pid, "bogustty")
   end
 
   test "using a port without opening it" do
-    {:ok, pid} = UART.start_link()
-    assert {:error, :ebadf} = UART.write(pid, "hello")
-    assert {:error, :ebadf} = UART.read(pid)
-    assert {:error, :ebadf} = UART.flush(pid)
-    assert {:error, :ebadf} = UART.drain(pid)
+    {:ok, pid} = StarterPort.start_link()
+    assert {:error, :ebadf} = StarterPort.write(pid, "hello")
+    assert {:error, :ebadf} = StarterPort.read(pid)
+    assert {:error, :ebadf} = StarterPort.flush(pid)
+    assert {:error, :ebadf} = StarterPort.drain(pid)
   end
 
-  test "unopened uart returns a configuration" do
-    {:ok, pid} = UART.start_link()
-    {name, opts} = UART.configuration(pid)
+  test "unopened starter_port returns a configuration" do
+    {:ok, pid} = StarterPort.start_link()
+    {name, opts} = StarterPort.configuration(pid)
 
     assert name == :closed
     assert is_list(opts)
@@ -41,13 +41,13 @@ defmodule UARTlessTest do
     assert Keyword.get(opts, :stop_bits) == 1
     assert Keyword.get(opts, :parity) == :none
     assert Keyword.get(opts, :flow_control) == :none
-    assert Keyword.get(opts, :framing) == Circuits.UART.Framing.None
+    assert Keyword.get(opts, :framing) == Starter.Port.Framing.None
     assert Keyword.get(opts, :rx_framing_timeout) == 0
     assert Keyword.get(opts, :id) == :name
   end
 
-  test "find uarts" do
-    {:ok, pid} = UART.start_link()
-    assert UART.find_pids() == [{pid, :closed}]
+  test "find starter_ports" do
+    {:ok, pid} = StarterPort.start_link()
+    assert StarterPort.find_pids() == [{pid, :closed}]
   end
 end

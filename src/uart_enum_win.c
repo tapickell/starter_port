@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#include "uart_enum.h"
+#include "starter_port_enum.h"
 #include "util.h"
 
 /* TODO: Remove wchar code. I now know that it's not needed. */
@@ -39,21 +39,23 @@ static char *wchar_to_utf8(const wchar_t *str)
 }
 
 static char *device_registry_property(HDEVINFO device_info_set,
-                                    PSP_DEVINFO_DATA device_info_data,
-                                    DWORD property)
+                                      PSP_DEVINFO_DATA device_info_data,
+                                      DWORD property)
 {
     DWORD data_type = 0;
     wchar_t *buffer = malloc((MAX_PATH + 1) * sizeof(wchar_t));
     DWORD bytes_required = MAX_PATH;
-    for (;;) {
+    for (;;)
+    {
         if (SetupDiGetDeviceRegistryProperty(device_info_set, device_info_data, property, &data_type,
-                                             (PBYTE) buffer,
-                                             bytes_required, &bytes_required)) {
+                                             (PBYTE)buffer,
+                                             bytes_required, &bytes_required))
+        {
             break;
         }
 
-        if (GetLastError() != ERROR_INSUFFICIENT_BUFFER
-                || (data_type != REG_SZ && data_type != REG_EXPAND_SZ)) {
+        if (GetLastError() != ERROR_INSUFFICIENT_BUFFER || (data_type != REG_SZ && data_type != REG_EXPAND_SZ))
+        {
             return NULL;
         }
         buffer = realloc(buffer, bytes_required + 2);
@@ -75,18 +77,19 @@ static char *device_instance_id(DWORD device_instance_number)
 {
     wchar_t buffer[MAX_DEVICE_ID_LEN + 1];
     if (CM_Get_Device_ID(
-                device_instance_number,
-                buffer,
-                MAX_DEVICE_ID_LEN,
-                0) != CR_SUCCESS) {
+            device_instance_number,
+            buffer,
+            MAX_DEVICE_ID_LEN,
+            0) != CR_SUCCESS)
+    {
         return NULL;
     }
     return strtoupper(wchar_to_utf8(buffer));
 }
 
 static int parse_device_id(const char *instance_id,
-                                 const char *identifier_prefix,
-                                 int identifier_size)
+                           const char *identifier_prefix,
+                           int identifier_size)
 {
     const char *loc = strstr(instance_id, identifier_prefix);
     if (!loc)
@@ -101,10 +104,10 @@ static int device_vid(const char *instance_id)
 {
     static const int vid_len = 4;
     int result = parse_device_id(
-                instance_id, "VID_", vid_len);
+        instance_id, "VID_", vid_len);
     if (!result)
         result = parse_device_id(
-                    instance_id, "VEN_", vid_len);
+            instance_id, "VEN_", vid_len);
     return result;
 }
 
@@ -112,13 +115,12 @@ static int device_pid(const char *instance_id)
 {
     static const int pid_len = 4;
     int result = parse_device_id(
-                instance_id, "PID_", pid_len);
+        instance_id, "PID_", pid_len);
     if (!result)
         result = parse_device_id(
-                    instance_id, "DEV_", pid_len);
+            instance_id, "DEV_", pid_len);
     return result;
 }
-
 
 static char *device_port_name(HDEVINFO deviceInfoSet, PSP_DEVINFO_DATA deviceInfoData)
 {
@@ -127,10 +129,9 @@ static char *device_port_name(HDEVINFO deviceInfoSet, PSP_DEVINFO_DATA deviceInf
     if (key == INVALID_HANDLE_VALUE)
         return NULL;
 
-    static const wchar_t * const keyTokens[] = {
+    static const wchar_t *const keyTokens[] = {
         L"PortName\0",
-        L"PortNumber\0"
-    };
+        L"PortNumber\0"};
 
     static const int keyTokensCount = sizeof(keyTokens) / sizeof(keyTokens[0]);
 
@@ -138,20 +139,28 @@ static char *device_port_name(HDEVINFO deviceInfoSet, PSP_DEVINFO_DATA deviceInf
     wchar_t *buffer = malloc((MAX_PATH + 1) * sizeof(wchar_t));
     DWORD bytes_required = MAX_PATH;
 
-    for (int i = 0; i < keyTokensCount; ++i) {
+    for (int i = 0; i < keyTokensCount; ++i)
+    {
         DWORD data_type = 0;
-        for (;;) {
+        for (;;)
+        {
             const LONG rc = RegQueryValueEx(key, keyTokens[i], NULL, &data_type,
-                                             (PBYTE) buffer, &bytes_required);
-            if (rc == ERROR_MORE_DATA) {
+                                            (PBYTE)buffer, &bytes_required);
+            if (rc == ERROR_MORE_DATA)
+            {
                 buffer = realloc(buffer, bytes_required + 2);
                 continue;
-            } else if (rc == ERROR_SUCCESS) {
-                if (data_type == REG_SZ) {
+            }
+            else if (rc == ERROR_SUCCESS)
+            {
+                if (data_type == REG_SZ)
+                {
                     name = wchar_to_utf8(buffer);
-                } else if (data_type == REG_DWORD) {
+                }
+                else if (data_type == REG_DWORD)
+                {
                     name = malloc(16);
-                    sprintf(name, "COM%d", (int) *((PDWORD) buffer));
+                    sprintf(name, "COM%d", (int)*((PDWORD)buffer));
                 }
             }
             break;
@@ -165,10 +174,12 @@ static char *device_port_name(HDEVINFO deviceInfoSet, PSP_DEVINFO_DATA deviceInf
     return name;
 }
 
-static bool uart_exists(const struct serial_info *info, const char *port_name)
+static bool starter_port_exists(const struct serial_info *info, const char *port_name)
 {
-    for (const struct serial_info *i = info; i != NULL; i = i->next) {
-        if (strcmp(i->name, port_name) == 0) {
+    for (const struct serial_info *i = info; i != NULL; i = i->next)
+    {
+        if (strcmp(i->name, port_name) == 0)
+        {
             return true;
         }
     }
@@ -179,7 +190,8 @@ struct serial_info *find_serialports()
 {
     // Thanks to QtSerialPort for the list of classes and interfaces to scan. It was
     // much, much more helpful than the docs I found.
-    struct setup_args {
+    struct setup_args
+    {
         GUID guid;
         DWORD flags;
     } setup_tokens[4];
@@ -195,9 +207,11 @@ struct serial_info *find_serialports()
 
     struct serial_info *info = NULL;
 
-    for (int i = 0; i < setup_token_count; ++i) {
+    for (int i = 0; i < setup_token_count; ++i)
+    {
         const HDEVINFO device_info_set = SetupDiGetClassDevs(&setup_tokens[i].guid, NULL, NULL, setup_tokens[i].flags);
-        if (device_info_set == INVALID_HANDLE_VALUE) {
+        if (device_info_set == INVALID_HANDLE_VALUE)
+        {
             debug("What???\n");
             return info;
         }
@@ -207,18 +221,21 @@ struct serial_info *find_serialports()
         device_info_data.cbSize = sizeof(device_info_data);
 
         DWORD index = 0;
-        while (SetupDiEnumDeviceInfo(device_info_set, index++, &device_info_data)) {
+        while (SetupDiEnumDeviceInfo(device_info_set, index++, &device_info_data))
+        {
             char *port_name = device_port_name(device_info_set, &device_info_data);
             if (!port_name)
                 continue;
-            if (strncmp("LPT", port_name, 3) == 0) {
+            if (strncmp("LPT", port_name, 3) == 0)
+            {
                 free(port_name);
                 continue;
             }
 
             // SetupDiEnumDeviceInfo reports devices multiple times, so
             // prune out duplicates
-            if (uart_exists(info, port_name)) {
+            if (starter_port_exists(info, port_name))
+            {
                 free(port_name);
                 continue;
             }
@@ -232,7 +249,8 @@ struct serial_info *find_serialports()
             new_info->pid = 0;
 
             char *instance_id = device_instance_id(device_info_data.DevInst);
-            if (instance_id) {
+            if (instance_id)
+            {
                 new_info->vid = device_vid(instance_id);
                 new_info->pid = device_pid(instance_id);
             }

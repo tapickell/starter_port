@@ -1,5 +1,5 @@
-defmodule Circuits.UART.Framing.None do
-  @behaviour Circuits.UART.Framing
+defmodule Starter.Port.Framing.None do
+  @behaviour Starter.Port.Framing
 
   @moduledoc """
   Don't apply or removing any framing.

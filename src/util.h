@@ -26,7 +26,14 @@
 #ifdef DEBUG
 FILE *log_location;
 #define LOG_LOCATION log_location
-#define debug(...) do { fprintf(log_location, "%llu: ", current_time()); fprintf(log_location, __VA_ARGS__); fprintf(log_location, "\r\n"); fflush(log_location); } while(0)
+#define debug(...)                                   \
+  do                                                 \
+  {                                                  \
+    fprintf(log_location, "%llu: ", current_time()); \
+    fprintf(log_location, __VA_ARGS__);              \
+    fprintf(log_location, "\r\n");                   \
+    fflush(log_location);                            \
+  } while (0)
 #else
 #define LOG_LOCATION stderr
 #define debug(...)
@@ -36,10 +43,32 @@ FILE *log_location;
 #include <err.h>
 #else
 // If err.h doesn't exist, define substitutes.
-#define err(STATUS, MSG, ...) do { fprintf(LOG_LOCATION, "circuits_uart: " MSG "\n", ## __VA_ARGS__); fflush(LOG_LOCATION); exit(STATUS); } while (0)
-#define errx(STATUS, MSG, ...) do { fprintf(LOG_LOCATION, "circuits_uart: " MSG "\n", ## __VA_ARGS__); fflush(LOG_LOCATION); exit(STATUS); } while (0)
-#define warn(MSG, ...) do { fprintf(LOG_LOCATION, "circuits_uart: " MSG "\n", ## __VA_ARGS__); fflush(LOG_LOCATION); } while (0)
-#define warnx(MSG, ...) do { fprintf(LOG_LOCATION, "circuits_uart: " MSG "\n", ## __VA_ARGS__); fflush(LOG_LOCATION); } while (0)
+#define err(STATUS, MSG, ...)                                        \
+  do                                                                 \
+  {                                                                  \
+    fprintf(LOG_LOCATION, "starter_port: " MSG "\n", ##__VA_ARGS__); \
+    fflush(LOG_LOCATION);                                            \
+    exit(STATUS);                                                    \
+  } while (0)
+#define errx(STATUS, MSG, ...)                                       \
+  do                                                                 \
+  {                                                                  \
+    fprintf(LOG_LOCATION, "starter_port: " MSG "\n", ##__VA_ARGS__); \
+    fflush(LOG_LOCATION);                                            \
+    exit(STATUS);                                                    \
+  } while (0)
+#define warn(MSG, ...)                                               \
+  do                                                                 \
+  {                                                                  \
+    fprintf(LOG_LOCATION, "starter_port: " MSG "\n", ##__VA_ARGS__); \
+    fflush(LOG_LOCATION);                                            \
+  } while (0)
+#define warnx(MSG, ...)                                              \
+  do                                                                 \
+  {                                                                  \
+    fprintf(LOG_LOCATION, "starter_port: " MSG "\n", ##__VA_ARGS__); \
+    fflush(LOG_LOCATION);                                            \
+  } while (0)
 #endif
 
 #define ONE_YEAR_MILLIS (1000ULL * 60 * 60 * 24 * 365)

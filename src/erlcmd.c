@@ -72,7 +72,7 @@
 
 static DWORD WINAPI pipe_copy_thread(LPVOID lpParam)
 {
-    struct erlcmd *handler = (struct erlcmd *) lpParam;
+    struct erlcmd *handler = (struct erlcmd *)lpParam;
 
     // NEED to get overlapped version of stdin reader
     HANDLE real_stdin = GetStdHandle(STD_INPUT_HANDLE);
@@ -82,16 +82,19 @@ static DWORD WINAPI pipe_copy_thread(LPVOID lpParam)
     // the one we use for events. Don't know why.
     SetConsoleMode(real_stdin, 0);
 
-    while (handler->running) {
+    while (handler->running)
+    {
         char buffer[1024];
         DWORD bytes_read;
-        if (!ReadFile(real_stdin, buffer, sizeof(buffer), &bytes_read, NULL)) {
-            debug("ReadFile on real_stdin failed (port closed)! %d", (int) GetLastError());
+        if (!ReadFile(real_stdin, buffer, sizeof(buffer), &bytes_read, NULL))
+        {
+            debug("ReadFile on real_stdin failed (port closed)! %d", (int)GetLastError());
             break;
         }
 
-        if (!WriteFile(handler->stdin_write_pipe, buffer, bytes_read, NULL, NULL)) {
-            debug("WriteFile on stdin_write_pipe failed! %d", (int) GetLastError());
+        if (!WriteFile(handler->stdin_write_pipe, buffer, bytes_read, NULL, NULL))
+        {
+            debug("WriteFile on stdin_write_pipe failed! %d", (int)GetLastError());
             break;
         }
     }
@@ -107,10 +110,10 @@ static DWORD WINAPI pipe_copy_thread(LPVOID lpParam)
 static void start_async_read(struct erlcmd *handler)
 {
     ReadFile(handler->h,
-               handler->buffer + handler->index,
-               sizeof(handler->buffer) - handler->index,
-               NULL,
-               &handler->overlapped);
+             handler->buffer + handler->index,
+             sizeof(handler->buffer) - handler->index,
+             NULL,
+             &handler->overlapped);
 }
 
 #endif
@@ -136,48 +139,48 @@ void erlcmd_init(struct erlcmd *handler,
 
     char pipe_name[64];
     sprintf(pipe_name,
-             "\\\\.\\Pipe\\circuits-uart.%08x",
-             (unsigned int) GetCurrentProcessId());
+            "\\\\.\\Pipe\\starter-port.%08x",
+            (unsigned int)GetCurrentProcessId());
 
     handler->stdin_read_pipe = CreateNamedPipeA(
-                         pipe_name,
-                         PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED,
-                         PIPE_TYPE_BYTE | PIPE_WAIT,
-                         1,             // Number of pipes
-                         4096,          // Out buffer size
-                         4096,          // In buffer size
-                         120 * 1000,    // Timeout in ms
-                         NULL
-                         );
+        pipe_name,
+        PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED,
+        PIPE_TYPE_BYTE | PIPE_WAIT,
+        1,          // Number of pipes
+        4096,       // Out buffer size
+        4096,       // In buffer size
+        120 * 1000, // Timeout in ms
+        NULL);
     if (!handler->stdin_read_pipe)
         errx(EXIT_FAILURE, "Can't create overlapped i/o stdin pipe");
 
     handler->stdin_write_pipe = CreateFileA(
-                        pipe_name,
-                        GENERIC_WRITE,
-                        0,                         // No sharing
-                        NULL,
-                        OPEN_EXISTING,
-                        FILE_ATTRIBUTE_NORMAL,
-                        NULL                       // Template file
-                      );
+        pipe_name,
+        GENERIC_WRITE,
+        0, // No sharing
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL // Template file
+    );
     if (!handler->stdin_write_pipe)
         errx(EXIT_FAILURE, "Can't create write side of stdin pipe");
 
     handler->stdin_reader_thread = CreateThread(
-               NULL,                   // default security attributes
-               0,                      // use default stack size
-               pipe_copy_thread,       // thread function name
-               handler,          // argument to thread function
-               0,                      // use default creation flags
-               NULL);
-    if (handler->stdin_reader_thread == NULL) {
-        errx(EXIT_FAILURE, "CreateThread failed: %d", (int) GetLastError());
+        NULL,             // default security attributes
+        0,                // use default stack size
+        pipe_copy_thread, // thread function name
+        handler,          // argument to thread function
+        0,                // use default creation flags
+        NULL);
+    if (handler->stdin_reader_thread == NULL)
+    {
+        errx(EXIT_FAILURE, "CreateThread failed: %d", (int)GetLastError());
         return;
     }
     handler->h = handler->stdin_read_pipe;
     if (handler->h == INVALID_HANDLE_VALUE)
-        errx(EXIT_FAILURE, "Can't open stdin %d", (int) GetLastError());
+        errx(EXIT_FAILURE, "Can't open stdin %d", (int)GetLastError());
 
     handler->overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     handler->overlapped.Offset = 0;
@@ -203,9 +206,11 @@ void erlcmd_send(char *response, size_t len)
         errx(EXIT_FAILURE, "WriteFile to stdout failed (Erlang exit?)");
 #else
     size_t wrote = 0;
-    do {        
+    do
+    {
         ssize_t amount_written = write(STDOUT_FILENO, response + wrote, len - wrote);
-        if (amount_written < 0) {
+        if (amount_written < 0)
+        {
             if (errno == EINTR)
                 continue;
 
@@ -231,7 +236,7 @@ static size_t erlcmd_try_dispatch(struct erlcmd *handler)
     size_t msglen = FROM_BIGENDIAN16(be_len);
     if (msglen + sizeof(uint16_t) > sizeof(handler->buffer))
         errx(EXIT_FAILURE, "Message too long: %d bytes. Max is %d bytes",
-             (int) (msglen + sizeof(uint16_t)), (int) sizeof(handler->buffer));
+             (int)(msglen + sizeof(uint16_t)), (int)sizeof(handler->buffer));
 
     /* Check whether we've received the entire message */
     if (msglen + sizeof(uint16_t) > handler->index)
@@ -255,7 +260,8 @@ int erlcmd_process(struct erlcmd *handler)
                                   &handler->overlapped,
                                   &amount_read, FALSE);
 
-    if (!rc) {
+    if (!rc)
+    {
         DWORD last_error = GetLastError();
 
         // Check if this was a spurious event.
@@ -270,31 +276,40 @@ int erlcmd_process(struct erlcmd *handler)
     ResetEvent(handler->overlapped.hEvent);
 #else
     ssize_t amount_read = read(STDIN_FILENO, handler->buffer + handler->index, sizeof(handler->buffer) - handler->index);
-    if (amount_read < 0) {
+    if (amount_read < 0)
+    {
         /* EINTR is ok to get, since we were interrupted by a signal. */
         if (errno == EINTR)
             return 0;
 
         /* Everything else is unexpected. */
         err(EXIT_FAILURE, "read");
-    } else if (amount_read == 0) {
+    }
+    else if (amount_read == 0)
+    {
         /* EOF. Erlang process was terminated. This happens after a release or if there was an error. */
         return 1;
     }
 #endif
     handler->index += amount_read;
 
-    for (;;) {
+    for (;;)
+    {
         size_t bytes_processed = erlcmd_try_dispatch(handler);
 
-        if (bytes_processed == 0) {
+        if (bytes_processed == 0)
+        {
             /* Only have part of the command to process. */
             break;
-        } else if (handler->index > bytes_processed) {
+        }
+        else if (handler->index > bytes_processed)
+        {
             /* Processed the command and there's more data. */
             memmove(handler->buffer, &handler->buffer[bytes_processed], handler->index - bytes_processed);
             handler->index -= bytes_processed;
-        } else {
+        }
+        else
+        {
             /* Processed the whole buffer. */
             handler->index = 0;
             break;
