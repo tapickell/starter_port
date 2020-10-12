@@ -22,20 +22,10 @@ defmodule Starter.Port do
     # port: C port process
     # controlling_process: where events get sent
     # name: port name when opened
-    # framing: framing behaviour
-    # framing_state: framing behaviour's state
-    # rx_framing_timeout: how long to wait for incomplete frames
-    # queued_messages: queued messages when in passive mode
-    # rx_framing_tref: frame completion timer
     # is_active: active or passive mode
     defstruct port: nil,
               controlling_process: nil,
               name: :closed,
-              framing: Starter.Port.Framing.None,
-              framing_state: nil,
-              rx_framing_timeout: 0,
-              queued_messages: [],
-              rx_framing_tref: nil,
               is_active: true,
               id: :name
   end
@@ -45,63 +35,9 @@ defmodule Starter.Port do
           | {:speed, non_neg_integer}
           | {:data_bits, 5..8}
           | {:stop_bits, 1..2}
-          | {:parity, :none | :even | :odd | :space | :mark | :ignore}
-          | {:flow_control, :none | :hardware | :software}
-          | {:framing, module | {module, [term]}}
-          | {:rx_framing_timeout, integer}
           | {:id, :name | :pid}
 
   # Public API
-  @doc """
-  Return a map of available ports with information about each one. The map
-  looks like this:
-  ```
-     %{ "ttyS0" -> %{vendor_id: 1234, product_id: 1,
-                     manufacturer: "Acme Corporation", serial_number: "000001"},
-        "ttyUSB0" -> ${vendor_id: 1234, product_id: 2} }
-  ```
-  Depending on the port and the operating system, not all fields may be
-  returned. Informational fields are:
-
-    * `:vendor_id` - The 16-bit USB vendor ID of the device providing the port. Vendor ID to name lists are managed through usb.org
-    * `:product_id` - The 16-bit vendor supplied product ID
-    * `:manufacturer` - The manufacturer of the port
-    * `:description` - A description or product name
-    * `:serial_number` - The device's serial number if it has one
-  """
-  @spec enumerate() :: map
-  def enumerate() do
-    Starter.Port.Enumerator.enumerate()
-  end
-
-  @doc """
-  Find starter_ports.
-
-  This is intended as a diagnostic function for finding starter_ports that you may have
-  opened and forgotten about. Since a starter_port can only be opened once, this helps
-  you find the problematic one so that you can close it.
-
-  It returns a list of {pid, starter_port_name} tuples.
-
-  NOTE: Do not rely on this function in production code. It may change if
-  updates to the interface make it more convenient to use.
-  """
-  @spec find_pids() :: [{binary | :closed, pid()}]
-  def find_pids() do
-    Process.list()
-    |> Enum.filter(&is_starter_port_process/1)
-    |> Enum.map(&starter_port_info/1)
-  end
-
-  defp is_starter_port_process(pid) do
-    {:dictionary, dictionary} = Process.info(pid, :dictionary)
-    Keyword.get(dictionary, :"$initial_call") == {Starter.Port, :init, 1}
-  end
-
-  defp starter_port_info(pid) do
-    {name, _opts} = configuration(pid)
-    {pid, name}
-  end
 
   @doc """
   Start up a starter_port GenServer.
@@ -119,93 +55,21 @@ defmodule Starter.Port do
     GenServer.stop(pid)
   end
 
-  @doc """
-  Open a serial port.
-
-  The following options are available:
-
-    * `:active` - (`true` or `false`) specifies whether data is received as
-       messages or by calling `read/2`. See discussion below.
-
-    * `:speed` - (number) set the initial baudrate (e.g., 115200)
-
-    * `:data_bits` - (5, 6, 7, 8) set the number of data bits (usually 8)
-
-    * `:stop_bits` - (1, 2) set the number of stop bits (usually 1)
-
-    * `:parity` - (`:none`, `:even`, `:odd`, `:space`, or `:mark`) set the
-      parity. Usually this is `:none`. Other values:
-      * `:space` means that the parity bit is always 0
-      * `:mark` means that the parity bit is always 1
-      * `:ignore` means that the parity bit is ignored (Linux/OSX only)
-
-    * `:flow_control` - (`:none`, `:hardware`, or `:software`) set the flow control
-      strategy.
-
-    * `:framing` - (`module` or `{module, args}`) set the framing for data.
-      The `module` must implement the `Starter.Port.Framing` behaviour. See
-      `Starter.Port.Framing.None`, `Starter.Port.Framing.Line`, and
-      `Starter.Port.Framing.FourByte`. The default is `Starter.Port.Framing.None`.
-
-    * `:rx_framing_timeout` - (milliseconds) this specifies how long incomplete
-      frames will wait for the remainder to be received. Timed out partial
-      frames are reported as `{:partial, data}`. A timeout of <= 0 means to
-      wait forever.
-
-    * `:id` - (`:name` or `:pid`) specify what to return with the starter_port active
-    messages. with `:name` the messages are returned as `{:starter_port,
-    serial_port_name, data}` otherwise they are returned as `{:starter_port,
-    pid, data}`. The name and pid are the name of the connected starter_port or the pid
-    of the Starter.Port server pid as returned by `start_link/1`. The default
-    value is `:name`.
-
-  Active mode defaults to true and means that data received on the starter_port is
-  reported in messages. The messages have the following form:
-
-     `{:starter_port, serial_port_id, data}`
-
-  or
-
-     `{:starter_port, serial_port_id, {:error, reason}}`
-
-  When in active mode, flow control can not be used to push back on the sender
-  and messages will accumulated in the mailbox should data arrive fast enough.
-  If this is an issue, set `:active` to false and call `read/2` manually when
-  ready for more data.
-
-  On success, `open/3` returns `:ok`. On error, `{:error, reason}` is returned.
-  The following are some reasons:
-
-    * `:enoent`  - the specified port couldn't be found
-    * `:eagain`  - the port is already open
-    * `:eacces`  - permission was denied when opening the port
-  """
   @spec open(GenServer.server(), binary, [starter_port_option]) :: :ok | {:error, term}
   def open(pid, name, opts \\ []) do
     GenServer.call(pid, {:open, name, opts})
   end
 
-  @doc """
-  Close the serial port. The GenServer continues to run so that a port can
-  be opened again.
-  """
   @spec close(GenServer.server()) :: :ok | {:error, term}
   def close(pid) do
     GenServer.call(pid, :close)
   end
 
-  @doc """
-  Change the serial port configuration after `open/3` has been called. See
-  `open/3` for the valid options.
-  """
   @spec configure(GenServer.server(), [starter_port_option]) :: :ok | {:error, term}
   def configure(pid, opts) do
     GenServer.call(pid, {:configure, opts})
   end
 
-  @doc """
-  Get the configuration of the serial port.
-  """
   @spec configuration(GenServer.server()) :: {binary() | :closed, [starter_port_option]}
   def configuration(pid) do
     GenServer.call(pid, :configuration)
@@ -351,25 +215,18 @@ defmodule Starter.Port do
   end
 
   def handle_call({:open, name, opts}, {from_pid, _}, state) do
-    new_framing = Keyword.get(opts, :framing, nil)
-    new_rx_framing_timeout = Keyword.get(opts, :rx_framing_timeout, state.rx_framing_timeout)
     is_active = Keyword.get(opts, :active, true)
     id_mode = Keyword.get(opts, :id, :name)
 
     response = call_port(state, :open, {name, opts})
 
-    new_state =
-      change_framing(
-        %{
-          state
-          | name: name,
-            controlling_process: from_pid,
-            rx_framing_timeout: new_rx_framing_timeout,
-            is_active: is_active,
-            id: id_mode
-        },
-        new_framing
-      )
+    new_state = %{
+      state
+      | name: name,
+        controlling_process: from_pid,
+        is_active: is_active,
+        id: id_mode
+    }
 
     {:reply, response, new_state}
   end
