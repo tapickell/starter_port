@@ -1,6 +1,6 @@
 defmodule StarterPortTest do
   use ExUnit.Case
-  alias Starter.Port
+  alias StarterPort
 
   @moduledoc """
   This module provides common setup code for unit tests that require real

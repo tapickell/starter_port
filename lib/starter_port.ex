@@ -1,4 +1,4 @@
-defmodule Starter.Port do
+defmodule StarterPort do
   use GenServer
 
   # Many calls take timeouts for how long to wait for reading and writing

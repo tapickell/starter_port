@@ -1,4 +1,4 @@
-defmodule Starter.Port.MixProject do
+defmodule StarterPort.MixProject do
   use Mix.Project
 
   @version "1.4.2"
@@ -8,10 +8,10 @@ defmodule Starter.Port.MixProject do
       app: :starter_port,
       version: @version,
       elixir: "~> 1.6",
-      name: "Starter.Port",
+      name: "StarterPort",
       description: description(),
       package: package(),
-      source_url: "https://github.com/elixir-circuits/starter_port",
+      source_url: "https://github.com/tapickell/starter_port",
       compilers: [:elixir_make | Mix.compilers()],
       make_targets: ["all"],
       make_clean: ["clean"],
@@ -45,7 +45,7 @@ defmodule Starter.Port.MixProject do
         "CHANGELOG.md"
       ],
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => "https://github.com/elixir-circuits/starter_port"}
+      links: %{"GitHub" => "https://github.com/tapickell/starter_port"}
     }
   end
 
